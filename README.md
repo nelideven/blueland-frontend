@@ -1,4 +1,4 @@
 # blueland-frontend
-A simple GTK3 GUI for blueland
+A simple GTK4 GUI for blueland
 
 # !! WORK IN PROGRESS !!
