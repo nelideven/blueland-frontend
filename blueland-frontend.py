@@ -17,18 +17,25 @@ class BluelandUI(Gtk.ApplicationWindow):
         super().__init__(application=app)
         self.set_title("Blueland Control Panel")
         self.set_default_size(500, 400)
-
+        self.connected = set()
         self.known_macs = set()
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.set_child(box)
 
-        self.device_list = Gtk.ListBox()
-        box.append(self.device_list)
+        # 🔄 FlowBox for device buttons instead of ListBox
+        self.device_grid = Gtk.FlowBox()
+        self.device_grid.set_valign(Gtk.Align.START)
+        box.append(self.device_grid)
 
         refresh_btn = Gtk.Button(label="Discover Devices")
         refresh_btn.connect("clicked", self.refresh_devices)
-        box.append(refresh_btn)
+
+        action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        action_box.set_halign(Gtk.Align.CENTER)  # Center horizontally
+        action_box.set_valign(Gtk.Align.END)     # Stick to bottom
+        action_box.append(refresh_btn)
+        box.append(action_box)
 
         self.frontend = Gio.DBusProxy.new_for_bus_sync(
             Gio.BusType.SESSION,
@@ -44,11 +51,12 @@ class BluelandUI(Gtk.ApplicationWindow):
         self.start_socket_listener()
 
     def refresh_devices(self, *_):
-        # Clear existing list for a fresh scan
-        self.device_list.remove_all()
+        child = self.device_grid.get_first_child()
+        while child:
+            self.device_grid.remove(child)
+            child = self.device_grid.get_next_sibling(child)
         self.known_macs.clear()
 
-        # Trigger scanning without blocking GTK
         self.frontend.call(
             "DiscoverDevices",
             None,
@@ -73,10 +81,92 @@ class BluelandUI(Gtk.ApplicationWindow):
 
         self.known_macs.add(mac)
         name = msg.get('name', f"Device ({mac})")
+
+        # Create visual button
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        icon = Gtk.Image.new_from_icon_name("bluetooth")
+        icon.set_pixel_size(32)  # or 48 for larger buttons
         label = Gtk.Label(label=name)
-        row = Gtk.ListBoxRow()
-        row.set_child(label)
-        self.device_list.append(row)
+        box.append(icon)
+        box.append(label)
+
+        btn = Gtk.Button()
+        btn.set_child(box)
+        btn.connect("clicked", lambda *_: self.show_device_popup(mac, name))
+
+        self.device_grid.append(btn)
+
+    def show_device_popup(self, mac, name):
+        dialog = Gtk.Dialog(title=f"{name} Options", transient_for=self, modal=True)
+        dialog.set_default_size(300, 150)
+        content_area = dialog.get_content_area()
+
+        # 📡 Get live device state first
+        def _on_device_state_ready(proxy, result, user_data):
+            state = proxy.call_finish(result).unpack()[0]
+            connected = state.get("Connected", False)
+
+            # 🧾 Info label
+            info_label = Gtk.Label(label=f"MAC: {mac}\nDevice: {name}")
+            content_area.append(info_label)
+
+            # 🔘 Connect/Disconnect logic
+            if connected:
+                connect_btn = Gtk.Button(label="Disconnect")
+                connect_btn.set_tooltip_text("Disconnect from this device")
+                connect_btn.connect("clicked", lambda *_: self.frontend.call(
+                    "DisconnectDevice",
+                    GLib.Variant('(s)', (mac,)),
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    None,
+                    self._on_connect_finished,
+                    None
+                ))
+            else:
+                connect_btn = Gtk.Button(label="Connect")
+                connect_btn.set_tooltip_text("Connect to this device")
+                connect_btn.connect("clicked", lambda *_: self.frontend.call(
+                    "PairConnDevice",
+                    GLib.Variant('(s)', (mac,)),
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    None,
+                    self._on_connect_finished,
+                    None
+                ))
+
+            cancel_btn = Gtk.Button(label="Cancel")
+            cancel_btn.connect("clicked", lambda *_: dialog.close())
+
+            # 📦 Actions
+            action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            action_box.set_halign(Gtk.Align.CENTER)
+            action_box.set_valign(Gtk.Align.END)
+            action_box.append(connect_btn)
+            action_box.append(cancel_btn)
+            content_area.append(action_box)
+
+            dialog.present()
+
+        self.frontend.call(
+            "DeviceState",
+            GLib.Variant('(s)', (mac,)),
+            Gio.DBusCallFlags.NONE,
+            -1,
+            None,
+            _on_device_state_ready,
+            None
+        )
+
+    def _on_connect_finished(self, proxy, result, user_data):
+        try:
+            reply = proxy.call_finish(result)
+            print("Connection successful:", reply.print_(True))
+            # Optionally show success banner or update button
+        except Exception as e:
+            print(f"Connect failed: {e}")
+            # Optionally show error dialog or toast
 
     def start_socket_listener(self):
         def listen():
