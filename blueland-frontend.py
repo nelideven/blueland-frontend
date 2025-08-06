@@ -51,10 +51,11 @@ class BluelandUI(Gtk.ApplicationWindow):
         self.start_socket_listener()
 
     def refresh_devices(self, *_):
-        child = self.device_grid.get_first_child()
+        oldchild = self.device_grid.get_first_child()
+        child = oldchild
         while child:
             self.device_grid.remove(child)
-            child = self.device_grid.get_next_sibling(child)
+            child = self.device_grid.get_next_sibling(oldchild)
         self.known_macs.clear()
 
         self.frontend.call(
