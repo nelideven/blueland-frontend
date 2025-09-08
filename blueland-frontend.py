@@ -23,7 +23,7 @@ class BluelandUI(Gtk.ApplicationWindow):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.set_child(box)
 
-        # 🔄 FlowBox for device buttons instead of ListBox
+        # FlowBox for device buttons instead of ListBox
         self.device_grid = Gtk.FlowBox()
         self.device_grid.set_valign(Gtk.Align.START)
         box.append(self.device_grid)
@@ -55,7 +55,7 @@ class BluelandUI(Gtk.ApplicationWindow):
         child = oldchild
         while child:
             self.device_grid.remove(child)
-            child = self.device_grid.get_next_sibling(oldchild)
+            child = self.device_grid.get_first_child()
         self.known_macs.clear()
 
         self.frontend.call(
@@ -95,6 +95,8 @@ class BluelandUI(Gtk.ApplicationWindow):
         btn.set_child(box)
         btn.connect("clicked", lambda *_: self.show_device_popup(mac, name))
 
+        if name.lower() == "unknown":
+            return  # Skip unknown devices
         self.device_grid.append(btn)
 
     def show_device_popup(self, mac, name):
@@ -102,16 +104,16 @@ class BluelandUI(Gtk.ApplicationWindow):
         dialog.set_default_size(300, 150)
         content_area = dialog.get_content_area()
 
-        # 📡 Get live device state first
+        # Get live device state first
         def _on_device_state_ready(proxy, result, user_data):
             state = proxy.call_finish(result).unpack()[0]
             connected = state.get("Connected", False)
 
-            # 🧾 Info label
+            # Info label
             info_label = Gtk.Label(label=f"MAC: {mac}\nDevice: {name}")
             content_area.append(info_label)
 
-            # 🔘 Connect/Disconnect logic
+            # Connect/Disconnect logic
             if connected:
                 connect_btn = Gtk.Button(label="Disconnect")
                 connect_btn.set_tooltip_text("Disconnect from this device")
@@ -140,7 +142,7 @@ class BluelandUI(Gtk.ApplicationWindow):
             cancel_btn = Gtk.Button(label="Cancel")
             cancel_btn.connect("clicked", lambda *_: dialog.close())
 
-            # 📦 Actions
+            # Actions
             action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
             action_box.set_halign(Gtk.Align.CENTER)
             action_box.set_valign(Gtk.Align.END)
