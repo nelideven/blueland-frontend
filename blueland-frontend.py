@@ -142,11 +142,24 @@ class BluelandUI(Gtk.ApplicationWindow):
             cancel_btn = Gtk.Button(label="Cancel")
             cancel_btn.connect("clicked", lambda *_: dialog.close())
 
+            forget_btn = Gtk.Button(label="Forget")
+            forget_btn.set_tooltip_text("Forget this device")
+            forget_btn.connect("clicked", lambda *_: self.frontend.call(
+                "RemoveDevice",
+                GLib.Variant('(s)', (mac,)),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+                self._on_forget_finished,
+                None
+            ))
+
             # Actions
             action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
             action_box.set_halign(Gtk.Align.CENTER)
             action_box.set_valign(Gtk.Align.END)
             action_box.append(connect_btn)
+            action_box.append(forget_btn)
             action_box.append(cancel_btn)
             content_area.append(action_box)
 
@@ -165,11 +178,32 @@ class BluelandUI(Gtk.ApplicationWindow):
     def _on_connect_finished(self, proxy, result, user_data):
         try:
             reply = proxy.call_finish(result)
-            print("Connection successful:", reply.print_(True))
-            # Optionally show success banner or update button
+            print("Success!", reply.print_(True))
+            dialogconn = Gtk.Dialog(title="Connection Status", modal=True)
+            success_label = Gtk.Label(label=reply.print_(True))
+            dialogconn.get_content_area().append(success_label)
+            dialogconn.present()
         except Exception as e:
-            print(f"Connect failed: {e}")
-            # Optionally show error dialog or toast
+            print(f"Failed: {e}")
+            dialogconn = Gtk.Dialog(title="Connection Status", modal=True)
+            success_label = Gtk.Label(label=f"Error: {e}")
+            dialogconn.get_content_area().append(success_label)
+            dialogconn.present()
+
+    def _on_forget_finished(self, proxy, result, user_data):
+        try:
+            reply = proxy.call_finish(result)
+            print("Success!", reply.print_(True))
+            dialogconn = Gtk.Dialog(title="Forget Device Status", modal=True)
+            success_label = Gtk.Label(label=reply.print_(True))
+            dialogconn.get_content_area().append(success_label)
+            dialogconn.present()
+        except Exception as e:
+            print(f"Failed: {e}")
+            dialogconn = Gtk.Dialog(title="Forget Device Status", modal=True)
+            success_label = Gtk.Label(label=f"Error: {e}")
+            dialogconn.get_content_area().append(success_label)
+            dialogconn.present()
 
     def start_socket_listener(self):
         def listen():
