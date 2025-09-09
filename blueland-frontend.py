@@ -106,8 +106,13 @@ class BluelandUI(Gtk.ApplicationWindow):
 
         # Get live device state first
         def _on_device_state_ready(proxy, result, user_data):
-            state = proxy.call_finish(result).unpack()[0]
+            reply = proxy.call_finish(result)
+            state = reply.unpack()[0]
+            if not isinstance(state, dict):
+                print(f"DeviceState returned non-dict: {state}")
+                state = {}
             connected = state.get("Connected", False)
+            paired = state.get("Paired", False)
 
             # Info label
             info_label = Gtk.Label(label=f"MAC: {mac}\nDevice: {name}")
@@ -142,24 +147,26 @@ class BluelandUI(Gtk.ApplicationWindow):
             cancel_btn = Gtk.Button(label="Cancel")
             cancel_btn.connect("clicked", lambda *_: dialog.close())
 
-            forget_btn = Gtk.Button(label="Forget")
-            forget_btn.set_tooltip_text("Forget this device")
-            forget_btn.connect("clicked", lambda *_: self.frontend.call(
-                "RemoveDevice",
-                GLib.Variant('(s)', (mac,)),
-                Gio.DBusCallFlags.NONE,
-                -1,
-                None,
-                self._on_forget_finished,
-                None
-            ))
+            if paired:
+                forget_btn = Gtk.Button(label="Forget")
+                forget_btn.set_tooltip_text("Forget this device")
+                forget_btn.connect("clicked", lambda *_: self.frontend.call(
+                    "RemoveDevice",
+                    GLib.Variant('(s)', (mac,)),
+                    Gio.DBusCallFlags.NONE,
+                    -1,
+                    None,
+                    self._on_forget_finished,
+                    None
+                ))
 
             # Actions
             action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
             action_box.set_halign(Gtk.Align.CENTER)
             action_box.set_valign(Gtk.Align.END)
             action_box.append(connect_btn)
-            action_box.append(forget_btn)
+            if paired:
+                action_box.append(forget_btn)
             action_box.append(cancel_btn)
             content_area.append(action_box)
 
