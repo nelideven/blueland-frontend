@@ -41,9 +41,9 @@ class BluelandUI(Gtk.ApplicationWindow):
             Gio.BusType.SESSION,
             Gio.DBusProxyFlags.NONE,
             None,
-            "org.blueland.Frontend",
-            "/org/blueland/Frontend",
-            "org.blueland.Frontend",
+            "org.blueland.Agent",
+            "/org/blueland/Agent",
+            "org.blueland.Agent",
             None
         )
 
